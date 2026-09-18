@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Management CRUD</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#172033}.header{background:linear-gradient(135deg,#4338ca,#7c3aed);color:white;padding:28px 20px}.header>div,.container{max-width:1100px;margin:auto}.header h1{margin:0 0 6px}.container{padding:24px 20px;display:grid;grid-template-columns:350px 1fr;gap:22px}.card{background:white;border-radius:16px;padding:20px;box-shadow:0 3px 16px #18213a12;margin-bottom:16px}h2{margin-top:0}label{display:block;font-weight:600;font-size:14px;margin-bottom:14px}input,textarea,select{width:100%;padding:11px;margin-top:6px;border:1px solid #d8deea;border-radius:9px;font:inherit}textarea{resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer}.primary{background:#4f46e5;color:white;width:100%}.secondary{background:#eef2ff;color:#4338ca}.danger{background:#fff1f2;color:#be123c}.toolbar{display:flex;gap:10px;margin-bottom:15px}.toolbar input{margin:0;flex:1}.toolbar select{margin:0;width:170px}.task-top{display:flex;justify-content:space-between;gap:12px}.task h3{margin:0 0 7px}.task p{color:#667085;margin:0 0 12px;white-space:pre-wrap}.badges{display:flex;gap:7px;flex-wrap:wrap}.badge{font-size:12px;font-weight:700;background:#eef2ff;color:#4338ca;border-radius:20px;padding:5px 9px}.actions{display:flex;gap:6px}.empty{text-align:center;color:#667085;padding:45px}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat strong{display:block;font-size:26px;margin-top:5px}.data-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}@media(max-width:800px){.container{grid-template-columns:1fr}.toolbar{flex-direction:column}.toolbar select{width:100%}}
+</style>
+</head>
+<body>
+<header class="header"><div><h1>Task Management</h1><div>Create, read, update, delete, and save tasks locally.</div></div></header>
+<main class="container">
+<section>
+<div class="card">
+<h2 id="formTitle">New Task</h2>
+<form id="taskForm">
+<label>Task Title<input id="title" required placeholder="Enter task title"></label>
+<label>Description<textarea id="description" rows="4" placeholder="Enter details"></textarea></label>
+<div class="row">
+<label>Priority<select id="priority"><option>Low</option><option selected>Medium</option><option>High</option></select></label>
+<label>Status<select id="status"><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
+</div>
+<button class="btn primary" id="saveBtn" type="submit">Add Task</button>
+<button class="btn secondary" id="cancelBtn" type="button" style="width:100%;margin-top:8px;display:none">Cancel Edit</button>
+</form>
+<div class="data-actions"><button class="btn secondary" onclick="exportData()">Download Data</button><button class="btn secondary" onclick="document.getElementById('fileInput').click()">Import Data</button></div>
+<input id="fileInput" type="file" accept="application/json,.json" hidden onchange="importData(event)">
+</div>
+<div class="stats"><div class="card stat">Total Tasks<strong id="total">0</strong></div><div class="card stat">Completed<strong id="completed">0</strong></div></div>
+</section>
+<section>
+<div class="toolbar"><input id="search" placeholder="Search tasks..."><select id="filter"><option>All</option><option>Pending</option><option>In Progress</option><option>Completed</option></select></div>
+<div id="taskList"></div>
+</section>
+</main>
+<script>
+const KEY='task-management-crud-v1';
+let tasks=JSON.parse(localStorage.getItem(KEY)||'[]');
+let editingId=null;
+const $=id=>document.getElementById(id);
+function persist(){localStorage.setItem(KEY,JSON.stringify(tasks));render()}
+function uid(){return (crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random())}
+$('taskForm').addEventListener('submit',e=>{e.preventDefault();const data={title:$('title').value.trim(),description:$('description').value.trim(),priority:$('priority').value,status:$('status').value};if(!data.title)return;if(editingId){tasks=tasks.map(t=>t.id===editingId?{...t,...data,updatedAt:Date.now()}:t)}else{tasks.unshift({id:uid(),...data,createdAt:Date.now()})}resetForm();persist()});
+function resetForm(){editingId=null;$('taskForm').reset();$('priority').value='Medium';$('formTitle').textContent='New Task';$('saveBtn').textContent='Add Task';$('cancelBtn').style.display='none'}
+$('cancelBtn').onclick=resetForm;
+function editTask(id){const t=tasks.find(x=>x.id===id);if(!t)return;editingId=id;$('title').value=t.title;$('description').value=t.description;$('priority').value=t.priority;$('status').value=t.status;$('formTitle').textContent='Edit Task';$('saveBtn').textContent='Update Task';$('cancelBtn').style.display='block';scrollTo({top:0,behavior:'smooth'})}
+function deleteTask(id){if(confirm('Delete this task?')){tasks=tasks.filter(t=>t.id!==id);if(editingId===id)resetForm();persist()}}
+function esc(s=''){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(){const q=$('search').value.toLowerCase();const f=$('filter').value;const filtered=tasks.filter(t=>(t.title+' '+t.description).toLowerCase().includes(q)&&(f==='All'||t.status===f));$('total').textContent=tasks.length;$('completed').textContent=tasks.filter(t=>t.status==='Completed').length;$('taskList').innerHTML=filtered.length?filtered.map(t=>`<div class="card task"><div class="task-top"><div><h3>${esc(t.title)}</h3><p>${esc(t.description)}</p><div class="badges"><span class="badge">${esc(t.priority)}</span><span class="badge">${esc(t.status)}</span></div></div><div class="actions"><button class="btn secondary" onclick="editTask('${t.id}')">Edit</button><button class="btn danger" onclick="deleteTask('${t.id}')">Delete</button></div></div></div>`).join(''):'<div class="card empty">No tasks found.</div>'}
+$('search').oninput=render;$('filter').onchange=render;
+function exportData(){const blob=new Blob([JSON.stringify(tasks,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='task-management-data.json';a.click();URL.revokeObjectURL(a.href)}
+function importData(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!Array.isArray(data))throw Error();tasks=data;persist();alert('Task data imported successfully.')}catch{alert('Invalid task data file.')}event.target.value=''};reader.readAsText(file)}
+render();
+</script>
+</body>
+</html>
